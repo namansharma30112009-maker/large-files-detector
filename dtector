@@ -1,0 +1,171 @@
+/*
+ * SIMPLE DISASTER EARLY WARNING SYSTEM - BEGINNER FRIENDLY
+ * Detects: Earthquakes, Landslides, Floods
+ * Easy to build with minimal components
+ */
+
+// ===== PIN DEFINITIONS =====
+#define VIBRATION_PIN 2        // SW-420 Vibration Sensor (Earthquake)
+#define SOIL_MOISTURE_PIN A0   // Soil Moisture Sensor (Landslide)
+#define RAIN_SENSOR_PIN A1     // Rain Sensor (Flood)
+#define BUZZER_PIN 8           // Buzzer for alarm
+#define LED_RED 7              // Red LED (Danger)
+#define LED_GREEN 6            // Green LED (Safe)
+
+// ===== THRESHOLD VALUES (You can adjust these) =====
+int vibrationThreshold = 3;        // Number of shakes to trigger alarm
+int soilMoistureLimit = 400;      // Below this = too wet (landslide risk)
+int rainLimit = 500;               // Above this = heavy rain
+
+// ===== VARIABLES =====
+int shakeCount = 0;                // Count earthquake shakes
+unsigned long lastShakeTime = 0;   // Time of last shake
+bool alarmActive = false;          // Is alarm currently on?
+
+void setup() {
+  // Start Serial Monitor (for debugging)
+  Serial.begin(9600);
+  Serial.println("=== Disaster Warning System Started ===");
+  
+  // Setup pins
+  pinMode(VIBRATION_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  pinMode(LED_GREEN, OUTPUT);
+  
+  // Show system is ready
+  digitalWrite(LED_GREEN, HIGH);
+  Serial.println("System Ready - Monitoring...");
+  Serial.println("-----------------------------------");
+}
+
+void loop() {
+  // Reset alarm flag every 5 minutes
+  static unsigned long lastReset = 0;
+  if (millis() - lastReset > 300000) { // 5 minutes
+    alarmActive = false;
+    lastReset = millis();
+    digitalWrite(LED_GREEN, HIGH);
+    digitalWrite(LED_RED, LOW);
+  }
+  
+  // === CHECK FOR DISASTERS ===
+  
+  // 1. EARTHQUAKE CHECK
+  checkEarthquake();
+  
+  // 2. LANDSLIDE CHECK
+  checkLandslide();
+  
+  // 3. FLOOD CHECK
+  checkFlood();
+  
+  // Wait 1 second before next check
+  delay(1000);
+}
+
+// ===== EARTHQUAKE DETECTION =====
+void checkEarthquake() {
+  int vibration = digitalRead(VIBRATION_PIN);
+  
+  // If vibration detected
+  if (vibration == HIGH) {
+    // Avoid counting same shake multiple times
+    if (millis() - lastShakeTime > 200) {
+      shakeCount++;
+      lastShakeTime = millis();
+      
+      Serial.print("⚠ Vibration detected! Count: ");
+      Serial.println(shakeCount);
+    }
+  }
+  
+  // Reset shake count if no vibration for 3 seconds
+  if (millis() - lastShakeTime > 3000) {
+    shakeCount = 0;
+  }
+  
+  // TRIGGER EARTHQUAKE ALARM
+  if (shakeCount >= vibrationThreshold && !alarmActive) {
+    triggerAlarm("EARTHQUAKE DETECTED", "Strong shaking detected!");
+  }
+}
+
+// ===== LANDSLIDE DETECTION =====
+void checkLandslide() {
+  int soilMoisture = analogRead(SOIL_MOISTURE_PIN);
+  int rain = analogRead(RAIN_SENSOR_PIN);
+  
+  // Print values every 5 seconds
+  static unsigned long lastPrint = 0;
+  if (millis() - lastPrint > 5000) {
+    Serial.print("Soil Moisture: ");
+    Serial.print(soilMoisture);
+    Serial.print(" | Rain: ");
+    Serial.println(rain);
+    lastPrint = millis();
+  }
+  
+  // TRIGGER LANDSLIDE ALARM
+  // If soil is very wet AND it's raining heavily
+  if (soilMoisture < soilMoistureLimit && rain > rainLimit && !alarmActive) {
+    triggerAlarm("LANDSLIDE RISK", "Soil too wet + heavy rain!");
+  }
+}
+
+// ===== FLOOD DETECTION =====
+void checkFlood() {
+  int rain = analogRead(RAIN_SENSOR_PIN);
+  
+  // TRIGGER FLOOD ALARM
+  // If continuous heavy rain
+  static int heavyRainCount = 0;
+  
+  if (rain > rainLimit) {
+    heavyRainCount++;
+  } else {
+    heavyRainCount = 0;
+  }
+  
+  // If heavy rain for 10 consecutive seconds
+  if (heavyRainCount >= 10 && !alarmActive) {
+    triggerAlarm("FLOOD WARNING", "Continuous heavy rainfall!");
+  }
+}
+
+// ===== TRIGGER ALARM FUNCTION =====
+void triggerAlarm(String alertType, String message) {
+  alarmActive = true;
+  
+  // Turn on red LED, turn off green
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_GREEN, LOW);
+  
+  // Sound alarm (5 beeps)
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(500);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(500);
+  }
+  
+  // Print to Serial Monitor
+  Serial.println("");
+  Serial.println("╔════════════════════════════════╗");
+  Serial.println("║        ⚠ ALERT ⚠              ║");
+  Serial.println("╚════════════════════════════════╝");
+  Serial.print("TYPE: ");
+  Serial.println(alertType);
+  Serial.print("INFO: ");
+  Serial.println(message);
+  Serial.println("ACTION: ALERT AUTHORITIES IMMEDIATELY!");
+  Serial.println("-----------------------------------");
+  
+  // Keep buzzing for 10 more seconds
+  for (int i = 0; i < 10; i++) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delay(100);
+    digitalWrite(BUZZER_PIN, LOW);
+    delay(900);
+  }
+}
